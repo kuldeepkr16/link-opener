@@ -1,8 +1,8 @@
 # LinkOpener
 
 Makes links you click anywhere on macOS (Slack, Mail, Terminal, etc.) open in
-Brave with a profile you choose from a small popup, instead of Brave's own
-profile-picker dialog.
+Brave or Chrome with a profile you choose from a small popup, instead of the
+browser's own profile-picker dialog.
 
 ## Install
 
@@ -10,11 +10,12 @@ profile-picker dialog.
 curl -fsSL https://raw.githubusercontent.com/kuldeepkr16/link-opener/main/bootstrap.sh | bash
 ```
 
-Then click any link — a dialog will ask which Brave profile to open it in.
+Then click any link — a dialog will ask which profile to open it in.
 
-The list of profiles is read automatically from your own Brave installation
-(`~/Library/Application Support/BraveSoftware/Brave-Browser/Local State`), so
-it shows your profiles, not anyone else's — no editing required.
+The list of profiles is read automatically from whichever of Brave/Chrome you
+have installed (their `Local State` files), so it shows your own profiles —
+no editing required. If both are installed, each button is labeled with its
+browser, e.g. "personal (Chrome)".
 
 ## Uninstall
 
@@ -22,7 +23,8 @@ it shows your profiles, not anyone else's — no editing required.
 curl -fsSL https://raw.githubusercontent.com/kuldeepkr16/link-opener/main/bootstrap-uninstall.sh | bash
 ```
 
-This resets your default browser to Brave and removes `~/Applications/LinkOpener.app`.
+This resets your default browser (to Brave if installed, otherwise Chrome)
+and removes `~/Applications/LinkOpener.app`.
 
 <details>
 <summary>Manual install/uninstall (if you'd rather not pipe to bash)</summary>
@@ -36,7 +38,7 @@ This resets your default browser to Brave and removes `~/Applications/LinkOpener
 ## Requirements
 
 - macOS
-- Brave Browser installed in `/Applications`
+- Brave Browser and/or Google Chrome installed in `/Applications`
 - Optional: [`duti`](https://github.com/moretension/duti) (`brew install duti`) so install/uninstall can set the default browser automatically. Without it, set it manually in **System Settings > Desktop & Dock > Default web browser**.
 
 ## Gatekeeper note

@@ -22,8 +22,8 @@ codesign --force --deep -s - "$DEST"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 "$LSREGISTER" -f "$DEST"
 
-if [ ! -d "/Applications/Brave Browser.app" ]; then
-  echo "Warning: Brave Browser.app not found in /Applications — install Brave first." >&2
+if [ ! -d "/Applications/Brave Browser.app" ] && [ ! -d "/Applications/Google Chrome.app" ]; then
+  echo "Warning: neither Brave Browser.app nor Google Chrome.app found in /Applications — install one first." >&2
 fi
 
 if command -v duti >/dev/null 2>&1; then

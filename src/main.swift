@@ -1,30 +1,61 @@
 import Cocoa
 
 struct Profile {
-    let name: String
+    let browserLabel: String
+    let bundleID: String
     let directory: String
+    let profileName: String
 }
 
-func loadBraveProfiles() -> [Profile] {
-    let path = NSString(string: "~/Library/Application Support/BraveSoftware/Brave-Browser/Local State")
-        .expandingTildeInPath
+struct BrowserConfig {
+    let label: String
+    let bundleID: String
+    let localStatePath: String
+}
 
-    guard
-        let data = FileManager.default.contents(atPath: path),
-        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-        let profileSection = json["profile"] as? [String: Any],
-        let infoCache = profileSection["info_cache"] as? [String: Any]
-    else {
-        return [Profile(name: "Default", directory: "Default")]
+let browserConfigs: [BrowserConfig] = [
+    BrowserConfig(
+        label: "Brave",
+        bundleID: "com.brave.Browser",
+        localStatePath: "~/Library/Application Support/BraveSoftware/Brave-Browser/Local State"
+    ),
+    BrowserConfig(
+        label: "Chrome",
+        bundleID: "com.google.Chrome",
+        localStatePath: "~/Library/Application Support/Google/Chrome/Local State"
+    ),
+]
+
+func isInstalled(bundleID: String) -> Bool {
+    NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) != nil
+}
+
+func loadProfiles() -> [Profile] {
+    var profiles: [Profile] = []
+
+    for config in browserConfigs {
+        guard isInstalled(bundleID: config.bundleID) else { continue }
+
+        let path = NSString(string: config.localStatePath).expandingTildeInPath
+        guard
+            let data = FileManager.default.contents(atPath: path),
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let profileSection = json["profile"] as? [String: Any],
+            let infoCache = profileSection["info_cache"] as? [String: Any],
+            !infoCache.isEmpty
+        else {
+            profiles.append(Profile(browserLabel: config.label, bundleID: config.bundleID, directory: "Default", profileName: "Default"))
+            continue
+        }
+
+        for (directory, value) in infoCache {
+            guard let info = value as? [String: Any] else { continue }
+            let name = (info["name"] as? String) ?? directory
+            profiles.append(Profile(browserLabel: config.label, bundleID: config.bundleID, directory: directory, profileName: name))
+        }
     }
 
-    let profiles = infoCache.compactMap { directory, value -> Profile? in
-        guard let info = value as? [String: Any] else { return nil }
-        let name = (info["name"] as? String) ?? directory
-        return Profile(name: name, directory: directory)
-    }
-
-    return profiles.sorted { $0.directory < $1.directory }
+    return profiles.sorted { ($0.browserLabel, $0.directory) < ($1.browserLabel, $1.directory) }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -51,13 +82,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func showPicker(for urlString: String) {
         NSApp.activate(ignoringOtherApps: true)
 
-        let profiles = loadBraveProfiles()
+        let profiles = loadProfiles()
+
+        guard !profiles.isEmpty else {
+            // Neither Brave nor Chrome is installed — nothing to route to.
+            NSSound.beep()
+            return
+        }
+
+        let showBrowserLabel = Set(profiles.map { $0.browserLabel }).count > 1
 
         let alert = NSAlert()
-        alert.messageText = "Open link with which Brave profile?"
+        alert.messageText = "Open link with which profile?"
         alert.informativeText = urlString
         for profile in profiles {
-            alert.addButton(withTitle: profile.name)
+            let title = showBrowserLabel ? "\(profile.profileName) (\(profile.browserLabel))" : profile.profileName
+            alert.addButton(withTitle: title)
         }
         alert.addButton(withTitle: "Cancel")
 
@@ -71,7 +111,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         task.arguments = [
-            "-na", "Brave Browser",
+            "-b", profile.bundleID,
+            "-n",
             "--args",
             "--profile-directory=\(profile.directory)",
             urlString,
