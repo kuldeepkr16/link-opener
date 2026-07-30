@@ -26,13 +26,9 @@ if [ ! -d "/Applications/Brave Browser.app" ] && [ ! -d "/Applications/Google Ch
   echo "Warning: neither Brave Browser.app nor Google Chrome.app found in /Applications — install one first." >&2
 fi
 
-if command -v duti >/dev/null 2>&1; then
-  duti -s "$BUNDLE_ID" http || true
-  duti -s "$BUNDLE_ID" https || true
+if "$DEST/Contents/MacOS/LinkOpener" --set-default-handler "$BUNDLE_ID"; then
   echo "LinkOpener installed and set as default browser."
 else
-  echo "LinkOpener installed to $DEST."
-  echo "duti not found, so the default browser wasn't set automatically."
-  echo "Install it with 'brew install duti' and re-run this script, or set it manually:"
-  echo "  System Settings > Desktop & Dock > Default web browser > LinkOpener"
+  echo "LinkOpener installed to $DEST, but couldn't confirm it was set as the default browser."
+  echo "Click a link to test it — if it doesn't open through LinkOpener, just re-run this script."
 fi

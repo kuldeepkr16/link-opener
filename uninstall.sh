@@ -13,12 +13,15 @@ else
   RESET_BUNDLE_ID=""
 fi
 
-if [ -n "$RESET_BUNDLE_ID" ] && command -v duti >/dev/null 2>&1; then
-  duti -s "$RESET_BUNDLE_ID" http || true
-  duti -s "$RESET_BUNDLE_ID" https || true
-  echo "Default browser reset to $RESET_NAME."
+if [ -n "$RESET_BUNDLE_ID" ] && [ -x "$APP/Contents/MacOS/LinkOpener" ]; then
+  if "$APP/Contents/MacOS/LinkOpener" --set-default-handler "$RESET_BUNDLE_ID"; then
+    echo "Default browser reset to $RESET_NAME."
+  else
+    echo "Couldn't confirm the default browser was reset to $RESET_NAME."
+    echo "Set it manually: System Settings > Desktop & Dock > Default web browser"
+  fi
 else
-  echo "Couldn't reset the default browser automatically (duti missing or no supported browser installed)."
+  echo "Couldn't reset the default browser automatically (no supported browser installed, or LinkOpener already removed)."
   echo "Set it manually: System Settings > Desktop & Dock > Default web browser"
 fi
 

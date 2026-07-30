@@ -23,8 +23,14 @@ browser, e.g. "personal (Chrome)".
 curl -fsSL https://raw.githubusercontent.com/kuldeepkr16/link-opener/main/bootstrap-uninstall.sh | bash
 ```
 
-This resets your default browser (to Brave if installed, otherwise Chrome)
-and removes `~/Applications/LinkOpener.app`.
+This removes `~/Applications/LinkOpener.app` and attempts to reset your
+default browser back to Brave (or Chrome, if Brave isn't installed).
+
+macOS lets an app silently make *itself* the default browser, but silently
+switching the default to a *different* app isn't allowed — so the automatic
+reset here isn't guaranteed. If it doesn't take effect, the script tells you
+so, and one manual step finishes it: **System Settings > Desktop & Dock >
+Default web browser**, then pick Brave/Chrome.
 
 <details>
 <summary>Manual install/uninstall (if you'd rather not pipe to bash)</summary>
@@ -39,7 +45,9 @@ and removes `~/Applications/LinkOpener.app`.
 
 - macOS
 - Brave Browser and/or Google Chrome installed in `/Applications`
-- Optional: [`duti`](https://github.com/moretension/duti) (`brew install duti`) so install/uninstall can set the default browser automatically. Without it, set it manually in **System Settings > Desktop & Dock > Default web browser**.
+
+No other dependencies — install/uninstall use the same LaunchServices API
+`duti` wraps, called directly, so there's nothing extra to install.
 
 ## Gatekeeper note
 
