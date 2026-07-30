@@ -10,6 +10,11 @@ browser's own profile-picker dialog.
 curl -fsSL https://raw.githubusercontent.com/kuldeepkr16/link-opener/main/bootstrap.sh | bash
 ```
 
+**macOS will then show a system dialog** asking you to confirm the default
+browser change — click **"Use LinkOpener"** to finish setup. This is Apple's
+own confirmation prompt for changing your default browser; no install script
+(including this one) can skip it, it always requires one click.
+
 Then click any link — a dialog will ask which profile to open it in.
 
 The list of profiles is read automatically from whichever of Brave/Chrome you
@@ -17,20 +22,21 @@ have installed (their `Local State` files), so it shows your own profiles —
 no editing required. If both are installed, each button is labeled with its
 browser, e.g. "personal (Chrome)".
 
+> Don't run the install command more than once in a row without answering
+> that dialog first — each run asks again, so unanswered dialogs stack up on
+> screen instead of replacing each other.
+
 ## Uninstall
 
 ```
 curl -fsSL https://raw.githubusercontent.com/kuldeepkr16/link-opener/main/bootstrap-uninstall.sh | bash
 ```
 
-This removes `~/Applications/LinkOpener.app` and attempts to reset your
-default browser back to Brave (or Chrome, if Brave isn't installed).
-
-macOS lets an app silently make *itself* the default browser, but silently
-switching the default to a *different* app isn't allowed — so the automatic
-reset here isn't guaranteed. If it doesn't take effect, the script tells you
-so, and one manual step finishes it: **System Settings > Desktop & Dock >
-Default web browser**, then pick Brave/Chrome.
+This removes `~/Applications/LinkOpener.app` and requests that your default
+browser be reset back to Brave (or Chrome, if Brave isn't installed) — the
+same confirmation dialog as above will appear; click **"Use Brave"** (or
+Chrome) to finish. If you don't see it, check behind other windows, or set
+it manually: **System Settings > Desktop & Dock > Default web browser**.
 
 <details>
 <summary>Manual install/uninstall (if you'd rather not pipe to bash)</summary>

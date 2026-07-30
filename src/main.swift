@@ -1,37 +1,19 @@
 import Cocoa
 import CoreServices
 
-// CLI mode: `LinkOpener --set-default-handler <bundleID>` sets that bundle ID
-// as the default http/https handler, using the same LaunchServices API the
-// `duti` tool wraps. This lets install.sh/uninstall.sh work with no external
-// dependency, and exits before touching NSApplication.
+// CLI mode: `LinkOpener --set-default-handler <bundleID>` requests that
+// bundle ID as the default http/https handler, using the same LaunchServices
+// API the `duti` tool wraps. macOS shows its own system dialog asking the
+// user to confirm a default-browser change ("Use X" / "Keep Y") — that
+// confirmation can't be scripted or read back synchronously, so this just
+// fires the request and exits. install.sh/uninstall.sh call this instead of
+// depending on `duti`, and tell the user to expect and answer that dialog.
 if CommandLine.arguments.count >= 3, CommandLine.arguments[1] == "--set-default-handler" {
     let bundleID = CommandLine.arguments[2] as CFString
-    let targetID = bundleID as String
-
-    func isCurrentDefault(_ scheme: String) -> Bool {
-        (LSCopyDefaultHandlerForURLScheme(scheme as CFString)?.takeRetainedValue() as String?) == targetID
-    }
-
-    // Both the setter's status and an immediate readback can be stale right
-    // after the write, so retry a few times with a short pause before
-    // reporting failure.
-    var confirmed = false
-    for attempt in 1...3 {
-        _ = LSSetDefaultHandlerForURLScheme("http" as CFString, bundleID)
-        _ = LSSetDefaultHandlerForURLScheme("https" as CFString, bundleID)
-        confirmed = isCurrentDefault("http") && isCurrentDefault("https")
-        if confirmed { break }
-        if attempt < 3 { Thread.sleep(forTimeInterval: 0.3) }
-    }
-
-    if confirmed {
-        print("Default handler set to \(targetID).")
-        exit(0)
-    } else {
-        print("Could not confirm default handler was set to \(targetID) after retrying.")
-        exit(1)
-    }
+    _ = LSSetDefaultHandlerForURLScheme("http" as CFString, bundleID)
+    _ = LSSetDefaultHandlerForURLScheme("https" as CFString, bundleID)
+    print("Requested default handler: \(bundleID as String)")
+    exit(0)
 }
 
 struct Profile {
