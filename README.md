@@ -6,12 +6,24 @@ profile-picker dialog.
 
 ## Install
 
+Open Terminal and run:
+
+```
+curl -fsSL https://raw.githubusercontent.com/kuldeepkr16/link-opener/main/bootstrap.sh | bash
+```
+
+Then click any link — a dialog will ask which Brave profile to open it in.
+
+<details>
+<summary>Manual install (if you'd rather not pipe to bash)</summary>
+
 1. Download this repo: click **Code > Download ZIP** on GitHub (or `git clone git@github.com:kuldeepkr16/link-opener.git`), then unzip it.
 2. Open Terminal, `cd` into the unzipped folder, and run:
    ```
    bash install.sh
    ```
-3. Click any link. A dialog will ask which Brave profile to open it in.
+
+</details>
 
 The list of profiles is read automatically from your own Brave installation
 (`~/Library/Application Support/BraveSoftware/Brave-Browser/Local State`), so
