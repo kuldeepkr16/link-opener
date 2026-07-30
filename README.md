@@ -38,12 +38,27 @@ same confirmation dialog as above will appear; click **"Use Brave"** (or
 Chrome) to finish. If you don't see it, check behind other windows, or set
 it manually: **System Settings > Desktop & Dock > Default web browser**.
 
+## Something acting up? Repair it
+
+If links stop opening through LinkOpener, or the profile picker stops
+showing up (e.g. something else got set as your default browser), run:
+
+```
+curl -fsSL https://raw.githubusercontent.com/kuldeepkr16/link-opener/main/bootstrap-repair.sh | bash
+```
+
+This uninstalls and reinstalls LinkOpener in one go, putting it back as your
+default browser. If macOS hasn't seen this specific switch before, the
+confirmation dialog from above may appear — click through it the same way.
+
 <details>
-<summary>Manual install/uninstall (if you'd rather not pipe to bash)</summary>
+<summary>Manual install/uninstall/repair (if you'd rather not pipe to bash)</summary>
 
 **Install:** download this repo (**Code > Download ZIP** on GitHub, or `git clone git@github.com:kuldeepkr16/link-opener.git`), unzip it, then run `bash install.sh` from inside the folder.
 
 **Uninstall:** from that same folder, run `bash uninstall.sh`. Or manually: switch your default browser back to Brave in **System Settings > Desktop & Dock > Default web browser**, then delete `~/Applications/LinkOpener.app`.
+
+**Repair:** from that same folder, run `bash repair.sh` (runs uninstall.sh then install.sh).
 
 </details>
 
