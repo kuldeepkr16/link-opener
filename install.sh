@@ -28,6 +28,11 @@ fi
 
 "$DEST/Contents/MacOS/LinkOpener" --set-default-handler "$BUNDLE_ID"
 
+# Launch the app itself so its menu bar icon appears right away — the
+# --set-default-handler call above exits before ever starting the app.
+open -a "$DEST"
+
 echo "LinkOpener installed to $DEST."
 echo "macOS should now show a dialog asking to confirm the default browser change —"
 echo "click \"Use LinkOpener\" to finish setup. If you don't see it, check behind other windows."
+echo "You should also see a small arrow icon appear in your menu bar."
