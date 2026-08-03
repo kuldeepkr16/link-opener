@@ -1,4 +1,5 @@
 import Cocoa
+import SwiftUI
 import CoreServices
 
 // CLI mode: `LinkOpener --set-default-handler <bundleID>` requests that
@@ -16,11 +17,13 @@ if CommandLine.arguments.count >= 3, CommandLine.arguments[1] == "--set-default-
     exit(0)
 }
 
-struct Profile {
+struct Profile: Identifiable, Hashable {
     let browserLabel: String
     let bundleID: String
     let directory: String
     let profileName: String
+
+    var id: String { "\(bundleID)|\(directory)" }
 }
 
 struct BrowserConfig {
@@ -74,7 +77,150 @@ func loadProfiles() -> [Profile] {
     return profiles.sorted { ($0.browserLabel, $0.directory) < ($1.browserLabel, $1.directory) }
 }
 
+// MARK: - Auto-open rules (per-profile regex patterns, saved locally)
+
+enum RuleStore {
+    static let configURL: URL = {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("LinkOpener", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("rules.json")
+    }()
+
+    static func load() -> [String: [String]] {
+        guard
+            let data = try? Data(contentsOf: configURL),
+            let dict = try? JSONDecoder().decode([String: [String]].self, from: data)
+        else {
+            return [:]
+        }
+        return dict
+    }
+
+    static func save(_ rules: [String: [String]]) {
+        guard let data = try? JSONEncoder().encode(rules) else { return }
+        try? data.write(to: configURL)
+    }
+}
+
+/// Returns the single profile whose saved patterns match `urlString`, or nil
+/// if zero or more than one profile matches (ambiguous matches fall back to
+/// showing the picker rather than guessing).
+func matchingProfile(for urlString: String, among profiles: [Profile], rules: [String: [String]]) -> Profile? {
+    let nsURL = urlString as NSString
+    let fullRange = NSRange(location: 0, length: nsURL.length)
+
+    let matches = profiles.filter { profile in
+        guard let patterns = rules[profile.id], !patterns.isEmpty else { return false }
+        return patterns.contains { pattern in
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                return false
+            }
+            return regex.firstMatch(in: urlString, options: [], range: fullRange) != nil
+        }
+    }
+
+    return matches.count == 1 ? matches.first : nil
+}
+
+// MARK: - Settings window (SwiftUI)
+
+private struct RuleRow: Identifiable {
+    let id = UUID()
+    var text: String
+}
+
+struct SettingsView: View {
+    let profiles: [Profile]
+    @State private var rows: [String: [RuleRow]]
+    let onSave: ([String: [String]]) -> Void
+
+    init(profiles: [Profile], savedRules: [String: [String]], onSave: @escaping ([String: [String]]) -> Void) {
+        self.profiles = profiles
+        self.onSave = onSave
+        var initial: [String: [RuleRow]] = [:]
+        for profile in profiles {
+            initial[profile.id] = (savedRules[profile.id] ?? []).map { RuleRow(text: $0) }
+        }
+        _rows = State(initialValue: initial)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Auto-open rules").font(.title2).bold()
+            Text("Add patterns (plain text or regex) per profile. A link matching a profile's patterns opens straight into that profile — no picker. Hold ⌥ Option while clicking a link to always show the picker.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    ForEach(profiles) { profile in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("\(profile.profileName) (\(profile.browserLabel))").font(.headline)
+
+                            ForEach(Array((rows[profile.id] ?? []).enumerated()), id: \.element.id) { index, row in
+                                HStack {
+                                    TextField("e.g. quicksight", text: binding(profileID: profile.id, index: index))
+                                        .textFieldStyle(.roundedBorder)
+                                    Button {
+                                        removeRow(at: index, from: profile.id)
+                                    } label: {
+                                        Image(systemName: "minus.circle")
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+
+                            Button {
+                                addRow(to: profile.id)
+                            } label: {
+                                Label("Add pattern", systemImage: "plus.circle")
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Save") {
+                    var toSave: [String: [String]] = [:]
+                    for profile in profiles {
+                        let patterns = (rows[profile.id] ?? [])
+                            .map { $0.text.trimmingCharacters(in: .whitespaces) }
+                            .filter { !$0.isEmpty }
+                        toSave[profile.id] = patterns
+                    }
+                    onSave(toSave)
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 500, height: 480)
+    }
+
+    private func binding(profileID: String, index: Int) -> Binding<String> {
+        Binding(
+            get: { rows[profileID]?[index].text ?? "" },
+            set: { newValue in rows[profileID]?[index].text = newValue }
+        )
+    }
+
+    private func addRow(to profileID: String) {
+        rows[profileID, default: []].append(RuleRow(text: ""))
+    }
+
+    private func removeRow(at index: Int, from profileID: String) {
+        rows[profileID]?.remove(at: index)
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    var statusItem: NSStatusItem?
+    var settingsWindow: NSWindow?
+
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSAppleEventManager.shared().setEventHandler(
             self,
@@ -84,6 +230,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        if let button = item.button {
+            let image = NSImage(systemSymbolName: "arrow.up.forward.square", accessibilityDescription: "LinkOpener")
+            image?.isTemplate = true
+            button.image = image
+        }
+
+        let menu = NSMenu()
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+        menu.addItem(NSMenuItem.separator())
+        let quitItem = NSMenuItem(title: "Quit LinkOpener", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quitItem.target = NSApp
+        menu.addItem(quitItem)
+        item.menu = menu
+
+        statusItem = item
+    }
+
+    @objc func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let profiles = loadProfiles()
+        let rules = RuleStore.load()
+        let view = SettingsView(profiles: profiles, savedRules: rules) { [weak self] newRules in
+            RuleStore.save(newRules)
+            self?.settingsWindow?.close()
+        }
+
+        if let window = settingsWindow {
+            window.contentViewController = NSHostingController(rootView: view)
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+            window.title = "LinkOpener Settings"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            window.makeKeyAndOrderFront(nil)
+            settingsWindow = window
+        }
+    }
+
     @objc func handleGetURL(_ event: NSAppleEventDescriptor, withReplyEvent replyEvent: NSAppleEventDescriptor) {
         guard let urlString = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue else {
             return
@@ -91,8 +282,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The event arrives during the launch sequence, before the run loop
         // is free to run a modal session — defer to the next tick.
         DispatchQueue.main.async {
-            self.showPicker(for: urlString)
+            self.route(urlString)
         }
+    }
+
+    func route(_ urlString: String) {
+        let optionHeld = NSEvent.modifierFlags.contains(.option)
+        if !optionHeld {
+            let profiles = loadProfiles()
+            let rules = RuleStore.load()
+            if let match = matchingProfile(for: urlString, among: profiles, rules: rules) {
+                open(urlString, in: match)
+                return
+            }
+        }
+        showPicker(for: urlString)
     }
 
     func showPicker(for urlString: String) {
@@ -123,7 +327,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let profile = profiles[index]
+        open(urlString, in: profiles[index])
+    }
+
+    func open(_ urlString: String, in profile: Profile) {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         task.arguments = [
