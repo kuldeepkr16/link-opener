@@ -1,6 +1,7 @@
 import Cocoa
 import SwiftUI
 import CoreServices
+import UniformTypeIdentifiers
 
 // CLI mode: `LinkOpener --set-default-handler <bundleID>` requests that
 // bundle ID as the default http/https handler, using the same LaunchServices
@@ -98,8 +99,14 @@ enum RuleStore {
     }
 
     static func save(_ rules: [String: [String]]) {
-        guard let data = try? JSONEncoder().encode(rules) else { return }
+        guard let data = try? prettyData(for: rules) else { return }
         try? data.write(to: configURL)
+    }
+
+    static func prettyData(for rules: [String: [String]]) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try encoder.encode(rules)
     }
 }
 
@@ -243,6 +250,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
         menu.addItem(NSMenuItem.separator())
+        let exportItem = NSMenuItem(title: "Export Config…", action: #selector(exportConfig), keyEquivalent: "")
+        exportItem.target = self
+        menu.addItem(exportItem)
+        let importItem = NSMenuItem(title: "Import Config…", action: #selector(importConfig), keyEquivalent: "")
+        importItem.target = self
+        menu.addItem(importItem)
+        menu.addItem(NSMenuItem.separator())
         let quitItem = NSMenuItem(title: "Quit LinkOpener", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.target = NSApp
         menu.addItem(quitItem)
@@ -273,6 +287,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.makeKeyAndOrderFront(nil)
             settingsWindow = window
         }
+    }
+
+    @objc func exportConfig() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "linkopener-rules.json"
+        panel.allowedContentTypes = [.json]
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            let data = try RuleStore.prettyData(for: RuleStore.load())
+            try data.write(to: url)
+        } catch {
+            showAlert(title: "Export failed", message: error.localizedDescription)
+        }
+    }
+
+    @objc func importConfig() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let rules = try JSONDecoder().decode([String: [String]].self, from: data)
+            RuleStore.save(rules)
+            showAlert(title: "Import complete", message: "Replaced saved rules with \(rules.count) profile(s) from \(url.lastPathComponent).")
+        } catch {
+            showAlert(title: "Import failed", message: error.localizedDescription)
+        }
+    }
+
+    func showAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.runModal()
     }
 
     @objc func handleGetURL(_ event: NSAppleEventDescriptor, withReplyEvent replyEvent: NSAppleEventDescriptor) {
