@@ -1,0 +1,59 @@
+# Builds LinkOpener.app and commits it back to the repo.
+#
+# The repo ships a prebuilt app because install.sh just copies it into place —
+# users never compile anything. Building here rather than on a maintainer's Mac
+# means no local Xcode is needed: since macOS 26 the SwiftUI in the Command Line
+# Tools SDK declares `@State` as a macro whose plugin only full Xcode provides,
+# so `swiftc` alone can no longer compile this app.
+name: Build app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'Info.plist'
+      - 'icon/**'
+      - 'build.sh'
+      - '.github/workflows/build.yml'
+  # On a pull request the app is built and checked but not committed, so a
+  # change that no longer compiles is caught before it reaches main.
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcode-select -p
+          swiftc --version
+
+      - name: Build
+        run: bash build.sh
+
+      - name: Verify the universal binary and signature
+        run: |
+          lipo -archs LinkOpener.app/Contents/MacOS/LinkOpener
+          lipo -archs LinkOpener.app/Contents/MacOS/LinkOpener | grep -q arm64
+          lipo -archs LinkOpener.app/Contents/MacOS/LinkOpener | grep -q x86_64
+          codesign --verify --strict LinkOpener.app
+
+      - name: Commit the rebuilt app
+        if: github.event_name != 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add LinkOpener.app
+          if git diff --cached --quiet; then
+            echo "App bundle unchanged — nothing to commit."
+            exit 0
+          fi
+          git commit -m "Rebuild LinkOpener.app from ${GITHUB_SHA::7} [skip ci]"
+          git push

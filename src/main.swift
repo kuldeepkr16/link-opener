@@ -78,6 +78,41 @@ func loadProfiles() -> [Profile] {
     return profiles.sorted { ($0.browserLabel, $0.directory) < ($1.browserLabel, $1.directory) }
 }
 
+// CLI mode: `LinkOpener --check-profile-access` reports whether each installed
+// browser's `Local State` is actually readable. Since macOS 26 those files sit
+// behind Full Disk Access, and a denied read is silent — `loadProfiles()` just
+// falls back to one "Default" entry per browser, so the picker looks like it
+// works while hiding every real profile. install.sh runs this to catch that at
+// install time instead of leaving it to surface on the next link click.
+if CommandLine.arguments.count >= 2, CommandLine.arguments[1] == "--check-profile-access" {
+    var blocked: [String] = []
+    var installed = 0
+
+    for config in browserConfigs where isInstalled(bundleID: config.bundleID) {
+        installed += 1
+        let path = NSString(string: config.localStatePath).expandingTildeInPath
+        // An absent file means that browser has simply never been launched;
+        // a file that exists but won't open is a permission denial.
+        if FileManager.default.fileExists(atPath: path),
+           FileManager.default.contents(atPath: path) == nil {
+            blocked.append(config.label)
+        }
+    }
+
+    guard installed > 0 else {
+        print("No supported browser installed.")
+        exit(0)
+    }
+
+    guard blocked.isEmpty else {
+        print("Cannot read the profile list for: \(blocked.joined(separator: ", "))")
+        exit(1)
+    }
+
+    print("Profile access OK — \(loadProfiles().count) profile(s) found.")
+    exit(0)
+}
+
 // MARK: - Auto-open rules (per-profile regex patterns, saved locally)
 
 enum RuleStore {
