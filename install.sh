@@ -3,7 +3,6 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 APP_NAME="LinkOpener.app"
-DEST="$HOME/Applications/$APP_NAME"
 BUNDLE_ID="com.kuldeep.linkopener"
 
 if [ ! -d "$APP_NAME" ]; then
@@ -11,9 +10,32 @@ if [ ! -d "$APP_NAME" ]; then
   exit 1
 fi
 
-mkdir -p "$HOME/Applications"
-rm -rf "$DEST"
-cp -R "$APP_NAME" "$DEST"
+# Install into /Applications, which is what Finder's sidebar and Launchpad
+# show. That needs an admin password, so fall back to ~/Applications when
+# sudo is unavailable or declined — the app works identically from either
+# place, it is just harder to find in the home folder.
+DEST="/Applications/$APP_NAME"
+SUDO=""
+if [ ! -w "/Applications" ]; then
+  if command -v sudo >/dev/null 2>&1 && sudo -v 2>/dev/null; then
+    SUDO="sudo"
+  else
+    echo "No admin access — installing to ~/Applications instead of /Applications." >&2
+    DEST="$HOME/Applications/$APP_NAME"
+    mkdir -p "$HOME/Applications"
+  fi
+fi
+
+# Remove any copy left in the other location, so LaunchServices is not left
+# choosing between two LinkOpeners when handling a link.
+if [ "$DEST" = "/Applications/$APP_NAME" ]; then
+  rm -rf "$HOME/Applications/$APP_NAME"
+else
+  $SUDO rm -rf "/Applications/$APP_NAME" 2>/dev/null || true
+fi
+
+$SUDO rm -rf "$DEST"
+$SUDO cp -R "$APP_NAME" "$DEST"
 
 # Clear quarantine so Gatekeeper doesn't block a downloaded/unsigned app, but
 # keep the signature build.sh already made. Re-signing here would give the
@@ -21,12 +43,12 @@ cp -R "$APP_NAME" "$DEST"
 # that hash for an ad-hoc signed app — so re-signing on every install would
 # silently revoke the permission each time, sending the profile list back to a
 # lone "Default" entry with no visible error.
-xattr -dr com.apple.quarantine "$DEST" 2>/dev/null || true
+$SUDO xattr -dr com.apple.quarantine "$DEST" 2>/dev/null || true
 
 if ! codesign --verify --strict "$DEST" >/dev/null 2>&1; then
   echo "Bundled signature is invalid — re-signing." >&2
   echo "If you had granted Full Disk Access before, you will need to grant it again." >&2
-  codesign --force --deep -s - "$DEST"
+  $SUDO codesign --force --deep -s - "$DEST"
 fi
 
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
