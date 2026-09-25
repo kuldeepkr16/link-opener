@@ -1,7 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-APP="$HOME/Applications/LinkOpener.app"
+# Older versions installed into ~/Applications; current ones use
+# /Applications. Clean up whichever is present.
+if [ -d "/Applications/LinkOpener.app" ]; then
+  APP="/Applications/LinkOpener.app"
+else
+  APP="$HOME/Applications/LinkOpener.app"
+fi
 
 if [ -d "/Applications/Brave Browser.app" ]; then
   RESET_BUNDLE_ID="com.brave.Browser"
@@ -24,5 +30,10 @@ else
   echo "Set it manually: System Settings > Desktop & Dock > Default web browser"
 fi
 
-rm -rf "$APP"
+if [ -w "$(dirname "$APP")" ]; then
+  rm -rf "$APP"
+else
+  sudo rm -rf "$APP"
+fi
+rm -rf "$HOME/Applications/LinkOpener.app"
 echo "Removed $APP"
